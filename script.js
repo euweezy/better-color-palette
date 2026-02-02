@@ -16,6 +16,7 @@ const els = {
 
 // --- STATE MANAGEMENT ---
 let currentPalette = [];
+let lockedColors = [false, false, false, false, false]; // Track locked state for each color
 let alertTimeout;
 
 // --- HELPERS ---
@@ -35,19 +36,34 @@ const generateRandomColor = () => "#" + Math.floor(Math.random() * 16777215).toS
 // --- RENDERING ---
 function renderPalette(colors) {
     currentPalette = colors; // Update State
-    els.paletteContainer.innerHTML = colors.map(color => `
-        <div class="color-box">
-            <div class="color" style="background-color: ${color}"></div>
-            <div class="color-info">
-                <span class="hex-value">${color.toUpperCase()}</span>
-                <i class="far fa-copy copy-btn" title="Copy to Clipboard"></i>
+    els.paletteContainer.innerHTML = colors.map((color, index) => {
+        const isLocked = lockedColors[index];
+        const lockIcon = isLocked ? 'fa-lock' : 'fa-lock-open';
+        const lockClass = isLocked ? 'locked' : '';
+        const lockTitle = isLocked ? 'Unlock Color' : 'Lock Color';
+        
+        return `
+            <div class="color-box">
+                <div class="color" style="background-color: ${color}"></div>
+                <div class="color-info">
+                    <span class="hex-value">${color.toUpperCase()}</span>
+                    <div class="icon-group">
+                        <i class="fas ${lockIcon} lock-btn ${lockClass}" 
+                           data-index="${index}" 
+                           title="${lockTitle}"></i>
+                        <i class="far fa-copy copy-btn" title="Copy to Clipboard"></i>
+                    </div>
+                </div>
             </div>
-        </div>
-    `).join('');
+        `;
+    }).join('');
 }
 
 function generatePalette() {
-    const newColors = Array.from({ length: 5 }, generateRandomColor);
+    const newColors = currentPalette.length === 5 
+        ? currentPalette.map((color, index) => lockedColors[index] ? color : generateRandomColor())
+        : Array.from({ length: 5 }, generateRandomColor);
+    
     renderPalette(newColors);
 }
 
@@ -90,7 +106,8 @@ window.addEventListener('click', (e) => {
 // --- EVENT LISTENERS: ACTIONS ---
 els.generateBtn.addEventListener("click", () => {
     generatePalette();
-    showAlert("Palette Generated!");
+    const lockedCount = lockedColors.filter(Boolean).length;
+    showAlert(lockedCount > 0 ? `Palette Generated! (${lockedCount} locked)` : "Palette Generated!");
 });
 
 els.saveBtn.addEventListener("click", () => {
@@ -118,6 +135,8 @@ els.savedList.addEventListener('click', (e) => {
     const saved = getSaved();
 
     if (e.target.classList.contains('use-btn')) {
+        // Reset all locks when loading a saved palette
+        lockedColors = [false, false, false, false, false];
         renderPalette(saved[index]);
         closeModal();
         showAlert("Palette Applied!");
@@ -129,8 +148,29 @@ els.savedList.addEventListener('click', (e) => {
     }
 });
 
-// --- EVENT DELEGATION: COPY FUNCTIONALITY ---
+// --- EVENT DELEGATION: LOCK FUNCTIONALITY ---
 els.paletteContainer.addEventListener("click", (e) => {
+    // Handle lock button
+    if (e.target.classList.contains("lock-btn")) {
+        const index = parseInt(e.target.dataset.index);
+        lockedColors[index] = !lockedColors[index];
+        
+        // Update the icon
+        if (lockedColors[index]) {
+            e.target.classList.remove("fa-lock-open");
+            e.target.classList.add("fa-lock", "locked");
+            e.target.title = "Unlock Color";
+            showAlert("Color Locked!");
+        } else {
+            e.target.classList.remove("fa-lock", "locked");
+            e.target.classList.add("fa-lock-open");
+            e.target.title = "Lock Color";
+            showAlert("Color Unlocked!");
+        }
+        return;
+    }
+
+    // Handle copy functionality
     const copyTarget = e.target.closest(".copy-btn") || e.target.closest(".color");
     if (!copyTarget) return;
 

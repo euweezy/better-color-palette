@@ -213,13 +213,25 @@ button {
     letter-spacing: 0.5px;
 }
 
-.copy-btn {
-    color: var(--c4);
-    transition: color 0.3s;
-    cursor: pointer;
+.icon-group {
+    display: flex;
+    gap: 12px;
+    align-items: center;
 }
 
-.copy-btn:hover {
+.lock-btn, .copy-btn {
+    color: var(--c4);
+    transition: color 0.3s, transform 0.2s;
+    cursor: pointer;
+    font-size: 1rem;
+}
+
+.lock-btn:hover, .copy-btn:hover {
+    color: var(--c1);
+    transform: scale(1.1);
+}
+
+.lock-btn.locked {
     color: var(--c1);
 }
 
