@@ -1,91 +1,161 @@
-// DOM ELEMENTS
-const generateBtn = document.getElementById("generate-btn");
-const paletteContainer = document.querySelector(".palette-container");
+// --- DOM ELEMENTS ---
+const els = {
+    generateBtn: document.getElementById("generate-btn"),
+    saveBtn: document.getElementById("save-btn"),
+    applyBtn: document.getElementById("apply-btn"),
+    paletteContainer: document.querySelector(".palette-container"),
+    hamburger: document.getElementById("hamburger-menu"),
+    sidePanel: document.getElementById("side-panel"),
+    closeSideBtn: document.getElementById("close-side-panel"),
+    viewSavedBtn: document.getElementById("view-saved-palettes"),
+    savedModal: document.getElementById("saved-modal"),
+    closeModalBtn: document.getElementById("close-modal"),
+    savedList: document.getElementById("saved-list"),
+    customAlert: document.getElementById("custom-alert")
+};
 
-generateBtn.addEventListener("click", generatePalette);
-paletteContainer.addEventListener("click", (e) => {
-    // find the closest copy button/icon in case the user clicks an inner <i> or child element
-    const copyBtn = e.target.closest(".copy-btn");
-    if (copyBtn) {
-        const hexElement = copyBtn.previousElementSibling;
-        const hexValue = hexElement ? hexElement.textContent : "";
+// --- STATE MANAGEMENT ---
+let currentPalette = [];
+let alertTimeout;
 
-        navigator.clipboard.writeText(hexValue)
-        .then(() => {
-            // prefer the icon element if present, otherwise use the button itself
-            const icon = copyBtn.querySelector("i") || copyBtn;
-            showCopySuccess(icon);
-        })
-        .catch((err) => console.log(err));
-        return;
-    }
+// --- HELPERS ---
+const getSaved = () => JSON.parse(localStorage.getItem("palettes")) || [];
+const saveToStorage = (data) => localStorage.setItem("palettes", JSON.stringify(data));
 
-    const colorEl = e.target.closest(".color");
-    if (colorEl) {
-        const details = colorEl.nextElementSibling;
-        const hexEl = details ? details.querySelector(".hex-value") : null;
-        const hexValue = hexEl ? hexEl.textContent : "";
+function showAlert(message) {
+    els.customAlert.textContent = message;
+    els.customAlert.classList.add("show");
+    
+    clearTimeout(alertTimeout);
+    alertTimeout = setTimeout(() => els.customAlert.classList.remove("show"), 2000);
+}
 
-        navigator.clipboard.writeText(hexValue)
-        .then(() => {
-            const copyBtnEl = details ? details.querySelector(".copy-btn") : null;
-            const icon = copyBtnEl ? (copyBtnEl.querySelector("i") || copyBtnEl) : null;
-            if (icon) showCopySuccess(icon);
-        })
-        .catch((err) => console.log(err));
-    }
-})
+const generateRandomColor = () => "#" + Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0');
 
-function showCopySuccess(element){
-    if (!element) return;
-
-    element.classList.remove("far", "fa-copy");
-    element.classList.add("fa-solid", "fa-check");
-
-    element.style.color = "#48bb78";
-
-    // keep the check visible for 1.5s before reverting
-    setTimeout(() => {
-        element.classList.remove("fa-solid", "fa-check");
-        element.classList.add("far", "fa-copy");
-
-        element.style.color = "#111F35";
-    }, 1500);
+// --- RENDERING ---
+function renderPalette(colors) {
+    currentPalette = colors; // Update State
+    els.paletteContainer.innerHTML = colors.map(color => `
+        <div class="color-box">
+            <div class="color" style="background-color: ${color}"></div>
+            <div class="color-info">
+                <span class="hex-value">${color.toUpperCase()}</span>
+                <i class="far fa-copy copy-btn" title="Copy to Clipboard"></i>
+            </div>
+        </div>
+    `).join('');
 }
 
 function generatePalette() {
-    const colors = [];
-    for (let i = 0; i < 5; i++) {
-        colors.push(generateRandomColor());
+    const newColors = Array.from({ length: 5 }, generateRandomColor);
+    renderPalette(newColors);
+}
+
+function renderSavedPalettes() {
+    const saved = getSaved();
+    if (saved.length === 0) {
+        els.savedList.innerHTML = "<p style='text-align:center; padding:10px;'>No saved palettes yet.</p>";
+        return;
     }
 
-    updatePaletteDisplay(colors);
+    els.savedList.innerHTML = saved.map((palette, index) => `
+        <div class="saved-item">
+            <div class="mini-preview">
+                ${palette.map(c => `<div class="mini-color" style="background:${c}"></div>`).join('')}
+            </div>
+            <div class="action-buttons" data-index="${index}">
+                <button class="use-btn">Use</button>
+                <button class="del-btn">Delete</button>
+            </div>
+        </div>
+    `).join('');
 }
 
-function generateRandomColor(){
-    const letters = "0123456789ABCDEF";
-    let color = "#";
+// --- EVENT LISTENERS: NAVIGATION ---
+els.hamburger.addEventListener('click', () => els.sidePanel.style.width = "250px");
+els.closeSideBtn.addEventListener('click', () => els.sidePanel.style.width = "0");
 
-    for(let i = 0; i < 6; i++){
-        color += letters[Math.floor(Math.random() * 16)]; // generate number from 0 - 15
+els.viewSavedBtn.addEventListener('click', () => {
+    els.sidePanel.style.width = "0";
+    els.savedModal.style.display = "block";
+    renderSavedPalettes();
+});
+
+const closeModal = () => els.savedModal.style.display = "none";
+els.closeModalBtn.addEventListener('click', closeModal);
+window.addEventListener('click', (e) => {
+    if (e.target === els.savedModal) closeModal();
+});
+
+// --- EVENT LISTENERS: ACTIONS ---
+els.generateBtn.addEventListener("click", () => {
+    generatePalette();
+    showAlert("Palette Generated!");
+});
+
+els.saveBtn.addEventListener("click", () => {
+    const saved = getSaved();
+    saved.push(currentPalette);
+    saveToStorage(saved);
+    showAlert("Palette Saved!");
+});
+
+els.applyBtn.addEventListener("click", () => {
+    if (currentPalette.length === 5) {
+        currentPalette.forEach((color, index) => {
+            document.documentElement.style.setProperty(`--c${index + 1}`, color);
+        });
+        showAlert("Theme Updated!");
     }
+});
 
-    return color;
-}
+// --- EVENT DELEGATION: SAVED LIST ACTIONS ---
+els.savedList.addEventListener('click', (e) => {
+    const btnGroup = e.target.closest('.action-buttons');
+    if (!btnGroup) return;
 
-function updatePaletteDisplay(colors){
-    const colorBoxes = document.querySelectorAll(".color-box")
+    const index = parseInt(btnGroup.dataset.index);
+    const saved = getSaved();
 
-    colorBoxes.forEach((box, index) => {
-        const color = colors[index];
-        const colorDiv = box.querySelector(".color");
-        const hexValue = box.querySelector(".hex-value");
+    if (e.target.classList.contains('use-btn')) {
+        renderPalette(saved[index]);
+        closeModal();
+        showAlert("Palette Applied!");
+    } else if (e.target.classList.contains('del-btn')) {
+        saved.splice(index, 1);
+        saveToStorage(saved);
+        renderSavedPalettes(); // Re-render list
+        showAlert("Palette Deleted!");
+    }
+});
 
-        colorDiv.style.backgroundColor = color;
-        hexValue.textContent = color;
-    })
-}
+// --- EVENT DELEGATION: COPY FUNCTIONALITY ---
+els.paletteContainer.addEventListener("click", (e) => {
+    const copyTarget = e.target.closest(".copy-btn") || e.target.closest(".color");
+    if (!copyTarget) return;
 
+    // Find the closest parent .color-box to ensure we get the correct hex
+    const box = copyTarget.closest('.color-box');
+    const hex = box.querySelector(".hex-value").textContent;
+    const icon = box.querySelector(".copy-btn");
 
+    navigator.clipboard.writeText(hex).then(() => {
+        // Toggle Icon
+        icon.classList.replace("fa-copy", "fa-check");
+        icon.classList.replace("far", "fa-solid");
+        icon.style.color = "#48bb78";
+        
+        setTimeout(() => {
+            icon.classList.replace("fa-check", "fa-copy");
+            icon.classList.replace("fa-solid", "far");
+            icon.style.color = "";
+        }, 1500);
 
-// generatePalette() // if you want to generate a new color palette every time you reload or visit, remove to have the default
+        showAlert("Color Copied!");
+    });
+});
+
+// --- INITIALIZATION ---
+// Initialize with specific default colors
+const originalPalette = ['#F63049', '#D02752', '#8A244B', '#111F35', '#000000'];
+renderPalette(originalPalette);
